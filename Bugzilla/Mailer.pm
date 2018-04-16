@@ -173,11 +173,33 @@ sub MessageToMTA {
     }
     else {
         # This is useful for Sendmail, so we put it out here.
-        local $ENV{PATH} = SENDMAIL_PATH;
-        eval { sendmail($email, { transport => $transport }) };
-        if ($@) {
-            ThrowCodeError('mail_send_error', { msg => $@->message, mail => $email });
-        }
+#        local $ENV{PATH} = SENDMAIL_PATH;
+#        eval { sendmail($email, { transport => $transport }) };
+#        if ($@) {
+#            ThrowCodeError('mail_send_error', { msg => $@->message, mail => $email });
+#        }
+        my $smtp = Net::SMTP::SSL->new(
+            Host  => $host,
+            Port => $port,
+            Timeout => 120,
+            Debug => 1
+        );
+        die "Couldn't open connection: $!" if (!defined $smtp );
+ 
+        #$smtp->auth(Bugzilla->params->{'smtp_username'}, Bugzilla->params->{'smtp_password'});
+        $smtp->datasend("AUTH LOGIN\n");
+        $smtp->datasend(encode_base64(Bugzilla->params->{'smtp_username'}));
+        $smtp->datasend(encode_base64(Bugzilla->params->{'smtp_password'}));
+ 
+        $smtp->mail(Bugzilla->params->{'smtp_username'});
+        $smtp->to($email->header('to'));
+ 
+        $smtp->data();
+        $smtp->datasend($email->as_string());
+ 
+        $smtp->datasend("\r\n\r\n");
+        $smtp->dataend();
+        $smtp->quit();
     }
 }
 
